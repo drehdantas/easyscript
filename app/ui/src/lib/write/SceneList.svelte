@@ -6,9 +6,11 @@
   import type { Label } from "../bindings/Label";
   import { useEditor } from "../editor.svelte";
   import { plural, t } from "../i18n.svelte";
-  import { walk } from "../model";
   import { useReader } from "../reader.svelte";
   import { sceneKey, useTeam } from "../team.svelte";
+  import { projects } from "../app.svelte";
+  import { fileName, walk } from "../model";
+  import { type Reason, arrange, loadOrder, saveOrder, suggest } from "../story";
   import { normalize } from "../text";
   import NewFile from "./NewFile.svelte";
 
@@ -42,6 +44,60 @@
     return keys;
   });
   const sinceCount = $derived(team?.since.size ?? 0);
+
+  // The scenes by place, or in the story's order: a suggestion from how the story moves,
+  // which the writer can rearrange. Only this list follows it; no file changes.
+  const MODE = "easyscript:rail-mode";
+  let mode: "places" | "story" = $state((() => {
+    try {
+      return localStorage.getItem(MODE) === "story" ? "story" : "places";
+    } catch {
+      return "places";
+    }
+  })());
+  function setMode(next: "places" | "story") {
+    mode = next;
+    try {
+      localStorage.setItem(MODE, next);
+    } catch {
+      // Not remembered.
+    }
+  }
+  const projectKey = projects.current ?? reader.view.title;
+  let savedOrder: string[] | null = $state(loadOrder(projectKey));
+  const suggested = $derived(suggest(reader.view));
+  const story = $derived(arrange(suggested, savedOrder));
+  const reordered = $derived(savedOrder !== null && story.map((f) => f.path).join() !== suggested.map((f) => f.path).join());
+  let reordering = $state(false);
+  function move(i: number, by: number) {
+    const paths = story.map((f) => f.path);
+    const j = i + by;
+    if (j < 0 || j >= paths.length) return;
+    [paths[i], paths[j]] = [paths[j], paths[i]];
+    savedOrder = paths;
+    saveOrder(projectKey, paths);
+  }
+  function resetOrder() {
+    savedOrder = null;
+    saveOrder(projectKey, null);
+  }
+  const why = (r: Reason) =>
+    r.kind === "start"
+      ? t("Its name says the story starts here")
+      : r.kind === "after"
+        ? r.how === "flag"
+          ? t("After {file}: reads a flag set there", { file: fileName(r.file) })
+          : r.how === "choice"
+            ? t("After {file}: a choice there leads here", { file: fileName(r.file) })
+            : r.how === "fall_through"
+              ? t("After {file}: it runs on into this", { file: fileName(r.file) })
+              : t("After {file}: it jumps here", { file: fileName(r.file) })
+        : r.kind === "numbered"
+          ? t("Number {n} in its name", { n: r.n })
+          : r.kind === "entry"
+            ? t("The game starts it from its code")
+            : t("Nothing leads here: placed by its name");
+  const storyOpen = (path: string) => open.has(`story:${path}`);
 
   // A project with no project file: say what one gives, once.
   const SETUP = `easyscript:setup-later:${reader.view.title}`;
@@ -91,6 +147,8 @@
   $effect(() => {
     const place = current ? placeOf(current.id) : undefined;
     if (place && !open.has(place)) open = new Set([...open, place]);
+    const file = current ? `story:${reader.view.script.files[current.span.file]?.path}` : undefined;
+    if (file && !open.has(file)) open = new Set([...open, file]);
   });
   function toggle(place: string) {
     const next = new Set(open);
@@ -134,6 +192,10 @@
 <nav class="rail" aria-label={t("Scenes")}>
   <div class="rail-search">
     <input type="search" placeholder={t("Find a scene or a line…")} bind:value={query} aria-label={t("Find a scene or a line")} />
+    <div class="seg rail-mode" role="group" aria-label={t("Show scenes")}>
+      <button type="button" aria-pressed={mode === "places"} onclick={() => setMode("places")} title={t("The scenes place by place, as the project file arranges them")}>{t("By place")}</button>
+      <button type="button" aria-pressed={mode === "story"} onclick={() => setMode("story")} title={t("The files in the order the story plays them: a suggestion you can rearrange")}>{t("Story order")}</button>
+    </div>
   </div>
   {#if !editor.state.has_project_file && !later && reader.view.script.files.length > 0}
     <div class="catch-up setup">
@@ -157,7 +219,62 @@
       <button type="button" class="link" aria-pressed={touchedOnly} onclick={() => (touchedOnly = !touchedOnly)}>{touchedOnly ? t("Show all scenes") : plural(touched.size, "{n} scene the team is changing", "{n} scenes the team is changing")}</button>
     </div>
   {/if}
+  {#if mode === "story"}
+    <div class="story-head">
+      <p class="hint">{reordered ? t("Your order. Only this list follows it: no file changes.") : t("Suggested from how the story moves. Only this list follows it: no file changes.")}</p>
+      <div class="le-row">
+        <button class="btn small" type="button" aria-pressed={reordering} onclick={() => (reordering = !reordering)}>{reordering ? t("Done") : t("Rearrange")}</button>
+        {#if reordered}<button class="btn small" type="button" onclick={resetOrder}>{t("Back to the suggestion")}</button>{/if}
+      </div>
+    </div>
+  {/if}
   <div class="rail-list">
+    {#if mode === "story"}
+      <ol class="story-list">
+        {#each story as file, i (file.path)}
+          {@const shown = file.labels.filter((l) => matches(l.id))}
+          {#if shown.length > 0 || reordering}
+            {@const expanded = !reordering && (storyOpen(file.path) || q.length > 1 || touchedOnly)}
+            <li>
+              <div class="rail-place-row">
+                <button type="button" class="rail-place" aria-expanded={expanded} onclick={() => toggle(`story:${file.path}`)} title={`${file.path}\n${why(file.reason)}`}>
+                  <span class="story-n">{i + 1}</span>
+                  <span class="name">{fileName(file.path)}</span>
+                  <span class="count">{q.length > 1 ? `${shown.length}/${file.labels.length}` : file.labels.length}</span>
+                </button>
+                {#if reordering}
+                  <span class="story-move">
+                  <button type="button" class="btn small" onclick={() => move(i, -1)} disabled={i === 0} aria-label={t("Move {file} up", { file: fileName(file.path) })} title={t("Move up")}>↑</button>
+                  <button type="button" class="btn small" onclick={() => move(i, 1)} disabled={i === story.length - 1} aria-label={t("Move {file} down", { file: fileName(file.path) })} title={t("Move down")}>↓</button>
+                  </span>
+                {/if}
+              </div>
+              {#if expanded}
+                <div class="story-why">{why(file.reason)}</div>
+                <ul class="rail-scenes">
+                  {#each shown as label (label.id + label.span.file)}
+                    {@const m = marks(label.id)}
+                    <li>
+                      <button type="button" class="rail-scene" aria-current={current?.id === label.id ? "true" : undefined} onclick={() => pick(label.id)} title={label.notes[0]?.text}>
+                        <span class="id">{label.id}</span>
+                        {#if m.any}
+                          <span class="team-marks">
+                            {#if m.incoming}<span class="tm in" title={m.incoming}>↓</span>{/if}
+                            {#if m.others}<span class="tm other" title={m.others}>●</span>{/if}
+                            {#if m.since}<span class="tm new" title={m.since}>•</span>{/if}
+                          </span>
+                        {/if}
+                        <span class="count">{lines(label.id)}</span>
+                      </button>
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
+            </li>
+          {/if}
+        {/each}
+      </ol>
+    {:else}
     {#each places as group, g (g)}
       {#if group.name}<div class="rail-group">{group.name}</div>{/if}
       {#each group.places as place (place.id)}
@@ -197,6 +314,7 @@
         {/if}
       {/each}
     {/each}
+    {/if}
   </div>
   <div class="rail-foot">
     {#if naming}

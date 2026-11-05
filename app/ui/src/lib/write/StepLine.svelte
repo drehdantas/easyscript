@@ -12,6 +12,7 @@
   import { useReader } from "../reader.svelte";
   import TextView from "../TextView.svelte";
   import JumpPill from "./JumpPill.svelte";
+  import { player, soundTag } from "../voice.svelte";
   import Tools from "./Tools.svelte";
 
   let { line, marks, span }: { line: Line; marks: Mark[]; span: Span } = $props();
@@ -22,6 +23,8 @@
   const voice = $derived(reader.shown(line.tags, "voice")[0]?.value ?? null);
   const face = $derived(line.tags.find((tag) => reader.tagSpec(tag.name)?.show === "face")?.value ?? null);
   const other = $derived(line.tags.filter((tag) => !reader.tagSpec(tag.name)?.show));
+  const sound = $derived(soundTag(reader.view));
+  const dub = $derived(sound ? (line.tags.find((tag) => tag.name === sound.name)?.value ?? null) : null);
   const character = $derived(line.speaker ? reader.characters.get(line.speaker) : undefined);
   const editing = $derived(editor.target !== null && editor.is(span.file, span.start, "edit"));
 
@@ -41,6 +44,11 @@
         {#if thought}<span class="chip">{t("thought")}</span>{/if}
         {#if shake}<span class="chip">{t("shake")}</span>{/if}
         {#if voice}<span class="chip" title={t("Voice: {mood}", { mood: voice })}>{t("voice: {mood}", { mood: voice })}</span>{/if}
+        {#if dub}
+          <button type="button" class="stag" onclick={() => (player.isPlaying(sound, dub) ? player.stop() : player.play(sound, dub))}
+            title={sound?.available.includes(dub) ? t("Voice-over: {value}", { value: dub }) : t("No file for {value} in {path}", { value: dub, path: sound?.path ?? "" })}
+            class:missing={!sound?.available.includes(dub)}>{player.isPlaying(sound, dub) ? "■" : "▶"} {dub}</button>
+        {/if}
         {#if face && reader.showIds}<span class="chip quiet">{face}</span>{/if}
         {#if reader.showIds}{#each other as tag, i (i)}<span class="chip quiet">{tag.name}{tag.value ? `=${tag.value}` : ""}</span>{/each}{/if}
         {#if line.concurrent}<span class="chip quiet">{t("at the same time")}</span>{/if}

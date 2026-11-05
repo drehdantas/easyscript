@@ -5,6 +5,7 @@
   import Face from "../Face.svelte";
   import { t } from "../i18n.svelte";
   import { useReader } from "../reader.svelte";
+  import { player, soundOf, soundTag } from "../voice.svelte";
   import { type Event, PlayState, Run, type Wait, world } from "./runner";
 
   const reader = useReader();
@@ -21,9 +22,43 @@
   // Bumped on every step, so the state panel shows the flags as they are now.
   let tickCount = $state(0);
 
+  // Voice-over: a line's recording plays as the line shows, when the writer wants it.
+  const VOICES = "easyscript:play-voices";
+  let voices = $state((() => {
+    try {
+      return localStorage.getItem(VOICES) !== "0";
+    } catch {
+      return true;
+    }
+  })());
+  function toggleVoices() {
+    voices = !voices;
+    if (!voices) player.stop();
+    try {
+      localStorage.setItem(VOICES, voices ? "1" : "0");
+    } catch {
+      // Not remembered.
+    }
+  }
+  const sound = $derived(soundTag(reader.view));
+  /** How many events there were when a recording last played: only new lines play. */
+  let heard = 0;
+  function speak(before: number) {
+    if (!sound) return;
+    // The last line that just showed (lines shown together: the first with a recording).
+    const fresh = events.slice(before).filter((e) => e.kind === "line");
+    const line = fresh.find((e) => e.kind === "line" && soundOf(reader.view, e.tags));
+    if (line && line.kind === "line") player.play(sound, soundOf(reader.view, line.tags));
+    else if (fresh.length > 0) player.stop();
+  }
+  $effect(() => () => player.stop());
+
   async function sync() {
     if (!run) return;
+    const before = run.events.length < heard ? 0 : heard;
     events = [...run.events];
+    heard = events.length;
+    if (voices && player.available) speak(before);
     wait = run.wait;
     tickCount++;
     await tick();
@@ -34,6 +69,8 @@
     if (!id) return;
     start = id;
     run = new Run(world(reader.view), story);
+    heard = 0;
+    player.stop();
     run.start(id);
     played = reader.view;
     sync();
@@ -120,6 +157,7 @@
       <button class="btn small" type="button" onclick={() => restart()}>{t("Restart")}</button>
       <button class="btn small" type="button" onclick={resetState} title={t("Forget the flags set and the answers given")}>{t("Reset story state")}</button>
       <span class="grow"></span>
+      {#if sound && player.available}<button class="btn small" type="button" aria-pressed={voices} onclick={toggleVoices} title={t("Play each line's voice-over recording as it shows")}>{t("Voices")}</button>{/if}
       <button class="btn small" type="button" aria-pressed={showState} onclick={() => (showState = !showState)}>{t("State")}</button>
       <button class="btn small" type="button" onclick={() => (reader.playOpen = false)} title={t("Close the play panel; Play from here opens it again")}>{t("Hide")}</button>
     </div>
@@ -164,6 +202,11 @@
           <div class="bubble" class:thought class:last={i === events.length - 1}>
             {#if event.speaker}<div class="bubble-who">{event.speaker}</div>{/if}
             <div class="bubble-text">{event.text}</div>
+            {#if sound && player.available && soundOf(reader.view, event.tags)}
+              {@const dub = soundOf(reader.view, event.tags)}
+              <button type="button" class="bubble-dub" onclick={() => (player.isPlaying(sound, dub) ? player.stop() : player.play(sound, dub))}
+                title={t("Voice-over: {value}", { value: dub ?? "" })}>{player.isPlaying(sound, dub) ? "■" : "▶"} {dub}</button>
+            {/if}
           </div>
         </div>
       {:else if event.kind === "picked"}

@@ -20,6 +20,8 @@ use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Builder, Emitter, Manager, Runtime, State};
 
+mod media;
+
 /// The open project (its working copies and edits), and the watcher that follows its files.
 #[derive(Default)]
 struct Opened(Arc<Mutex<Option<Open>>>);
@@ -83,6 +85,252 @@ async fn open_project<R: Runtime>(
         let _ = window.set_title(&format!("{} — easyscript", session.view.title));
     }
     Ok(session)
+}
+
+// Images and sounds -------------------------------------------------------------------------
+
+/// The path pattern of an asset tag (`audio/{value}.*`).
+fn asset_pattern(ws: &Workspace, tag: &str) -> Result<String, String> {
+    let spec = ws
+        .project()
+        .config
+        .tags
+        .get(tag)
+        .ok_or_else(|| format!("no tag `{tag}` in the project file"))?;
+    if spec.kind != es_core::config::TagKind::Asset {
+        return Err(format!(
+            "`{tag}` does not name files: make it an asset tag in Project → Tags"
+        ));
+    }
+    spec.path
+        .clone()
+        .ok_or_else(|| format!("`{tag}` has no path: set one in Project → Tags"))
+}
+
+/// An image or sound of the project, as a data URI, to show or play. `path` is relative to
+/// the project and may end in `.*` (any extension).
+#[tauri::command]
+async fn asset_data(path: String, opened: State<'_, Opened>) -> Result<Option<String>, String> {
+    with_workspace(&opened, move |ws| {
+        if path.contains("..") {
+            return Err(format!("{path} is outside the project"));
+        }
+        match ws.project().find_asset(&path) {
+            Some(file) => media::data_uri(&file).map(Some),
+            None => Ok(None),
+        }
+    })
+    .await
+}
+
+/// Where a file for this tag and value goes, and the value used.
+fn place_asset(
+    ws: &mut Workspace,
+    tag: &str,
+    value: Option<String>,
+    name: &str,
+    bytes: &[u8],
+    replace: bool,
+) -> Result<String, String> {
+    let pattern = asset_pattern(ws, tag)?;
+    let (name, bytes) = media::prepare(name, bytes.to_vec())?;
+    let (name, bytes) = (name.as_str(), bytes.as_slice());
+    let value = value
+        .map(|v| v.trim().to_owned())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| media::value_from_name(name));
+    let ext = Path::new(name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let rel = media::asset_target(&pattern, &value, &ext)?;
+    // A path taking any extension: the value's file may be there in another format.
+    let other = pattern
+        .ends_with(".*")
+        .then(|| ws.project().find_asset(&pattern.replace("{value}", &value)))
+        .flatten()
+        .filter(|found| *found != ws.root().join(&rel));
+    if let Some(other) = other {
+        if !replace {
+            return Err(format!("exists: {}", other.display()));
+        }
+        media::write_asset(ws.root(), &rel, name, bytes, true)?;
+        std::fs::remove_file(&other).map_err(|e| format!("{}: {e}", other.display()))?;
+        return Ok(value);
+    }
+    media::write_asset(ws.root(), &rel, name, bytes, replace)?;
+    Ok(value)
+}
+
+/// Bring files from this computer in as `tag`'s files, each taking the value its name
+/// gives; `asset-progress` events say how far it is. Files there already are skipped
+/// unless `replace`.
+#[tauri::command]
+async fn import_assets<R: Runtime>(
+    tag: String,
+    sources: Vec<String>,
+    replace: bool,
+    app: AppHandle<R>,
+    opened: State<'_, Opened>,
+) -> Result<Brought, String> {
+    let total = sources.len();
+    with_workspace(&opened, move |ws| {
+        let mut brought = Batch::default();
+        for (i, source) in sources.into_iter().enumerate() {
+            let name = Path::new(&source)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let _ = app.emit("asset-progress", (i, total, name.clone()));
+            let placed = std::fs::read(&source)
+                .map_err(|e| e.to_string())
+                .and_then(|bytes| place_asset(ws, &tag, None, &name, &bytes, replace));
+            brought.record(name, placed);
+        }
+        let _ = app.emit("asset-progress", (total, total, String::new()));
+        ws.refresh().map_err(|e| e.to_string())?;
+        Ok(brought.done(ws.session()))
+    })
+    .await
+}
+
+/// What a batch of files did, as it goes.
+#[derive(Default)]
+struct Batch {
+    added: Vec<(String, String)>,
+    skipped: Vec<String>,
+    failed: Vec<(String, String)>,
+}
+
+impl Batch {
+    fn record(&mut self, name: String, placed: Result<String, String>) {
+        match placed {
+            Ok(value) => self.added.push((name, value)),
+            Err(e) if e.starts_with("exists:") => self.skipped.push(name),
+            Err(e) => self.failed.push((name, e)),
+        }
+    }
+
+    fn done(self, session: Session) -> Brought {
+        Brought {
+            session,
+            added: self.added,
+            skipped: self.skipped,
+            failed: self.failed,
+        }
+    }
+}
+
+/// Copy an image or a sound from this computer into the project, as the file of `tag`'s
+/// `value` (from the file's name when not given).
+#[tauri::command]
+async fn add_asset(
+    tag: String,
+    value: Option<String>,
+    source: String,
+    replace: bool,
+    opened: State<'_, Opened>,
+) -> Result<Session, String> {
+    with_workspace(&opened, move |ws| {
+        let bytes = std::fs::read(&source).map_err(|e| format!("{source}: {e}"))?;
+        let name = Path::new(&source)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        place_asset(ws, &tag, value, &name, &bytes, replace)?;
+        ws.refresh().map_err(|e| e.to_string())?;
+        Ok(ws.session())
+    })
+    .await
+}
+
+/// Download an image or a sound from a link (Google Drive, shared with anyone with the
+/// link) into the project, as the file of `tag`'s `value`.
+#[tauri::command]
+async fn download_asset(
+    tag: String,
+    value: Option<String>,
+    url: String,
+    replace: bool,
+    opened: State<'_, Opened>,
+) -> Result<Brought, String> {
+    let (name, bytes) = tauri::async_runtime::spawn_blocking(move || media::download(&url))
+        .await
+        .map_err(|e| e.to_string())??;
+    with_workspace(&opened, move |ws| {
+        let mut brought = Batch::default();
+        let placed = place_asset(ws, &tag, value, &name, &bytes, replace);
+        brought.record(name, placed);
+        ws.refresh().map_err(|e| e.to_string())?;
+        Ok(brought.done(ws.session()))
+    })
+    .await
+}
+
+/// The files in a Google Drive folder shared with anyone with the link.
+#[tauri::command]
+async fn drive_folder(url: String) -> Result<Vec<media::DriveFile>, String> {
+    tauri::async_runtime::spawn_blocking(move || media::list_drive_folder(&url))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// A file to bring in from Drive, and the value it takes.
+#[derive(serde::Deserialize)]
+struct DriveAsset {
+    id: String,
+    name: String,
+    value: Option<String>,
+}
+
+/// What a batch of files did: the files brought in (name, value), those skipped as there
+/// already, and those that failed (name, why).
+#[derive(Serialize)]
+struct Brought {
+    session: Session,
+    added: Vec<(String, String)>,
+    skipped: Vec<String>,
+    failed: Vec<(String, String)>,
+}
+
+/// Bring files from a Drive folder in as `tag`'s files, one by one; `asset-progress`
+/// events say how far it is. Files there already are skipped unless `replace`.
+#[tauri::command]
+async fn import_drive_assets<R: Runtime>(
+    tag: String,
+    files: Vec<DriveAsset>,
+    replace: bool,
+    app: AppHandle<R>,
+    opened: State<'_, Opened>,
+) -> Result<Brought, String> {
+    let mut brought = Batch::default();
+    let total = files.len();
+    for (i, file) in files.into_iter().enumerate() {
+        let _ = app.emit("asset-progress", (i, total, file.name.clone()));
+        let link = format!("https://drive.google.com/file/d/{}/view", file.id);
+        let got = tauri::async_runtime::spawn_blocking(move || media::download(&link))
+            .await
+            .map_err(|e| e.to_string())?;
+        let placed = match got {
+            Ok((name, bytes)) => {
+                let (tag, value) = (tag.clone(), file.value.clone());
+                with_workspace(&opened, move |ws| {
+                    Ok(place_asset(ws, &tag, value, &name, &bytes, replace))
+                })
+                .await?
+            }
+            Err(e) => Err(e),
+        };
+        brought.record(file.name, placed);
+    }
+    let _ = app.emit("asset-progress", (total, total, String::new()));
+    let session = with_workspace(&opened, |ws| {
+        ws.refresh().map_err(|e| e.to_string())?;
+        Ok(ws.session())
+    })
+    .await?;
+    Ok(brought.done(session))
 }
 
 /// Read the files again after `project-changed`; unsaved edits stay.
@@ -930,7 +1178,13 @@ fn app<R: Runtime>(builder: Builder<R>, github: GitHubSession) -> Builder<R> {
             dialogue_text,
             import_preview,
             import_write,
-            startup_project
+            startup_project,
+            asset_data,
+            add_asset,
+            download_asset,
+            drive_folder,
+            import_drive_assets,
+            import_assets
         ])
 }
 

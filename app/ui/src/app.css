@@ -3655,3 +3655,399 @@ table.grid {
     opacity: 1;
   }
 }
+
+/* the scene list in the story's order */
+.rail-mode {
+  display: flex;
+  margin-top: 8px;
+}
+
+.rail-mode button {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+}
+
+.story-head {
+  padding: 0 12px 8px;
+}
+
+.story-head .hint {
+  margin: 0 0 6px;
+  font-size: 0.74rem;
+}
+
+.story-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.story-n {
+  flex: none;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  display: inline-grid;
+  place-items: center;
+  font: 700 0.66rem var(--mono);
+  background: color-mix(in srgb, var(--ink) 9%, transparent);
+  color: var(--pencil);
+}
+
+.story-why {
+  margin: 0 8px 2px 34px;
+  font: italic 0.7rem var(--ui);
+  color: var(--faint);
+}
+
+.story-list .rail-place-row {
+  display: flex;
+  align-items: center;
+}
+
+.story-list .rail-place-row .rail-place {
+  padding-right: 8px;
+}
+
+.story-move {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+
+.story-move .btn {
+  padding: 1px 7px;
+}
+
+/* voice-over: a line's recording */
+.stag {
+  font: 700 0.62rem var(--mono);
+  border-radius: 999px;
+  padding: 0 7px;
+  border: 1px solid var(--ok);
+  color: var(--ok);
+  background: transparent;
+  cursor: pointer;
+  vertical-align: 1px;
+}
+
+span.stag {
+  cursor: default;
+}
+
+.stag:hover {
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+
+.voice-panel {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 16px 80px;
+}
+
+.voice-setup {
+  display: grid;
+  gap: 12px;
+  max-width: 560px;
+}
+
+.voice-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.voice-head h2 {
+  margin: 0 0 4px;
+}
+
+.voice-head .warn {
+  color: var(--warning);
+  font-weight: 700;
+}
+
+.voice-bring {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.voice-bring .drive {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.voice-bring .drive input {
+  flex: 1;
+  min-width: 0;
+}
+
+.voice-bring .hint {
+  margin: 0;
+  font-size: 0.74rem;
+}
+
+.voice-progress {
+  font: 0.8rem var(--mono);
+  color: var(--pencil);
+}
+
+.voice-review {
+  border: 1px solid var(--rule-strong);
+  border-radius: 10px;
+  background: var(--sheet);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.voice-review p {
+  margin: 0 0 8px;
+}
+
+.drive-list {
+  margin: 0 0 10px;
+  padding-left: 18px;
+  font: 0.78rem var(--mono);
+  color: var(--pencil);
+}
+
+.proposals {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.proposals li {
+  display: grid;
+  grid-template-columns: minmax(150px, auto) auto minmax(80px, auto) minmax(0, 1fr);
+  gap: 4px 10px;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.86rem;
+}
+
+.proposals li .hint {
+  grid-column: 3 / -1;
+  margin: 0;
+  font-size: 0.72rem;
+}
+
+.proposals .who,
+.voice-line .who {
+  font: 700 0.72rem var(--ui);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
+.proposals .arrow {
+  color: var(--faint);
+}
+
+.voice-filters {
+  position: sticky;
+  top: var(--top, 0);
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 0;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+
+.voice-filters input[type="search"] {
+  flex: 1;
+  min-width: 160px;
+}
+
+.voice-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.voice-scene {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 18px 0 4px;
+  font: 0.8rem var(--mono);
+}
+
+.voice-scene .file {
+  font: 700 0.66rem var(--ui);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+.voice-line {
+  display: grid;
+  grid-template-columns: 26px 110px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  margin-bottom: 4px;
+}
+
+.voice-line .n {
+  font: 0.7rem var(--mono);
+  color: var(--faint);
+  text-align: right;
+}
+
+.voice-line .who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-line .text {
+  font-family: var(--serif, Georgia, serif);
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-line.none {
+  background: transparent;
+  border-style: dashed;
+}
+
+.voice-line.missing {
+  border-color: var(--warning);
+}
+
+.voice-line .dub {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.voice-line .dub .hint {
+  margin: 0;
+  font-size: 0.74rem;
+}
+
+.voice-line .value {
+  font-size: 0.74rem;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.play-btn {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 13px;
+  border: 1px solid var(--ok);
+  background: transparent;
+  color: var(--ok);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.play-btn:disabled {
+  border-color: var(--rule-strong);
+  color: var(--faint);
+  cursor: default;
+}
+
+.voice-pick {
+  grid-column: 2 / -1;
+  border-top: 1px solid var(--rule);
+  padding-top: 8px;
+}
+
+.voice-pick input {
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.voice-pick ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 4px;
+}
+
+.voice-pick li {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.voice-pick .pick {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+  padding: 3px 8px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-pick .pick:hover {
+  border-color: var(--ink);
+}
+
+@media (max-width: 760px) {
+  .voice-head {
+    grid-template-columns: 1fr;
+  }
+
+  .voice-line {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  .voice-line .text,
+  .voice-line .dub {
+    grid-column: 2;
+  }
+}
+
+.le-dub input {
+  flex: 1;
+  min-width: 0;
+  font: 0.8rem var(--mono);
+}
+
+.bubble-dub {
+  margin-top: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ok);
+  font: 700 0.66rem var(--mono);
+  padding: 0;
+  cursor: pointer;
+}
+
+.stag.missing {
+  border-color: var(--warning);
+  color: var(--warning);
+  border-style: dashed;
+}

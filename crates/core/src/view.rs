@@ -165,7 +165,7 @@ fn build(project: &Project, editing: bool) -> ReadView {
     }
     let mut images = BTreeMap::new();
     for path in paths {
-        if let Some(uri) = thumbnail(&project.resolve(&path)) {
+        if let Some(uri) = project.find_asset(&path).and_then(|p| thumbnail(&p)) {
             images.insert(path, uri);
         }
     }
@@ -352,13 +352,25 @@ fn asset_values(project: &Project, pattern: &str) -> Vec<String> {
     let Ok(entries) = std::fs::read_dir(project.resolve(dir)) else {
         return Vec::new();
     };
+    // `{value}.*`: any extension.
+    let any = after.strip_suffix(".*");
     let mut values: Vec<String> = entries
         .filter_map(Result::ok)
         .filter_map(|e| e.file_name().into_string().ok())
-        .filter_map(|name| Some(name.strip_prefix(prefix)?.strip_suffix(after)?.to_owned()))
+        .filter_map(|name| {
+            let rest = name.strip_prefix(prefix)?;
+            match any {
+                Some(before_ext) => {
+                    let (stem, _) = rest.rsplit_once('.')?;
+                    Some(stem.strip_suffix(before_ext)?.to_owned())
+                }
+                None => Some(rest.strip_suffix(after)?.to_owned()),
+            }
+        })
         .filter(|v| !v.is_empty())
         .collect();
     values.sort();
+    values.dedup();
     values
 }
 

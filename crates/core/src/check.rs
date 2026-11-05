@@ -390,7 +390,7 @@ impl Checker<'_> {
                             .as_deref()
                             .unwrap_or("{value}")
                             .replace("{value}", v);
-                        if !self.project.resolve(&path).is_file() {
+                        if self.project.find_asset(&path).is_none() {
                             missing.entry(path).or_insert((tag.span, 0)).1 += 1;
                         }
                         None

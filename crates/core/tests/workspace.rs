@@ -494,3 +494,65 @@ fn a_new_file_goes_where_the_project_finds_it() {
     assert!(error.0.contains("label `b`"), "{error}");
     assert!(ws.state().changed.is_empty());
 }
+
+#[test]
+fn asset_paths_ending_in_any_extension() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("easyscript.toml"),
+        "[tags.dub]\nkind = \"asset\"\npath = \"audio/{value}.*\"\nshow = \"sound\"\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("a.dialogue"),
+        "~ a\nKeeper: One. [#dub=one]\nKeeper: Two. [#dub=two]\nKeeper: Three. [#dub=gone]\n",
+    )
+    .unwrap();
+    fs::create_dir_all(dir.path().join("audio")).unwrap();
+    fs::write(dir.path().join("audio/one.ogg"), "OggS").unwrap();
+    fs::write(dir.path().join("audio/two.mp3"), "ID3").unwrap();
+    let ws = Workspace::open(dir.path(), None).unwrap();
+    let project = ws.project();
+    assert_eq!(
+        project.find_asset("audio/two.*"),
+        Some(dir.path().join("audio/two.mp3"))
+    );
+    assert_eq!(project.find_asset("audio/gone.*"), None);
+    let view = ws.session().view;
+    let dub = view.tags.iter().find(|t| t.name == "dub").unwrap();
+    assert_eq!(dub.available, vec!["one", "two"]);
+    let missing: Vec<_> = view
+        .problems
+        .iter()
+        .filter(|p| p.code == "missing-asset")
+        .collect();
+    assert_eq!(missing.len(), 1, "{missing:?}");
+    assert!(missing[0].message.contains("gone"));
+}
+
+#[test]
+fn jumps_into_imported_files_are_in_the_flow() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("a.dialogue"),
+        "import \"res://b.dialogue\" as b\n\n~ start\nKeeper: Off we go.\n=> b/docks\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("b.dialogue"),
+        "~ docks\nKeeper: Here.\n=> END\n",
+    )
+    .unwrap();
+    let ws = Workspace::open(dir.path(), None).unwrap();
+    let flow = ws.session().view.flow;
+    let files: Vec<String> = ws.project().files.iter().map(|f| f.path.clone()).collect();
+    let a = files.iter().position(|p| p == "a.dialogue").unwrap();
+    let b = files.iter().position(|p| p == "b.dialogue").unwrap();
+    assert!(
+        flow.edges
+            .iter()
+            .any(|e| e.from == format!("{a}:start") && e.to == format!("{b}:docks")),
+        "{:?}",
+        flow.edges
+    );
+}

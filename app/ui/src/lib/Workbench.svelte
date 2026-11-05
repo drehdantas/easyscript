@@ -12,6 +12,7 @@
   import ProjectPanel from "./ProjectPanel.svelte";
   import { Reader, type Tab, provideReader } from "./reader.svelte";
   import ReadView from "./ReadView.svelte";
+  import VoicePanel from "./VoicePanel.svelte";
   import SettingsDialog from "./SettingsDialog.svelte";
   import ShareButton from "./ShareButton.svelte";
   import StoryMap from "./StoryMap.svelte";
@@ -62,6 +63,7 @@
     { id: "write", name: () => t("Write"), desktop: true },
     { id: "read", name: () => t("Read"), desktop: false },
     { id: "map", name: () => t("Map"), desktop: false },
+    { id: "voices", name: () => t("Voice-over"), desktop: true },
     { id: "project", name: () => t("Project"), desktop: true },
   ];
 
@@ -137,11 +139,13 @@
     </div>
   </header>
 
-  <main class="stage" class:page={reader.tab === "read" || reader.tab === "project"}>
+  <main class="stage" class:page={reader.tab === "read" || reader.tab === "project" || reader.tab === "voices"}>
     {#if editor && reader.tab === "write"}
       <WriteView />
     {:else if reader.tab === "map"}
       <StoryMap />
+    {:else if editor && reader.tab === "voices"}
+      <VoicePanel />
     {:else if editor && reader.tab === "project"}
       <ProjectPanel />
     {:else}

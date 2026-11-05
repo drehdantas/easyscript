@@ -45,7 +45,9 @@ voices = ["calm", "angry"]   # voice moods recorded; a line asking for another i
 
 # Line tags, `[#name=value]`. Kinds: `flag` (no value), `enum` (one of `values`),
 # `asset` (a file, at `path` with `{value}`), `text` (anything).
-# `show` tells the views how to show it: thought, shake, voice, face.
+# `show` tells the views how to show it: thought, shake, voice, face, sound.
+# An asset path ending in `.*` takes any extension (`audio/{value}.*` finds `hi.ogg`,
+# `hi.mp3` or `hi.wav`).
 [tags.face]
 kind = "asset"
 path = "faces/{value}.png"
@@ -59,6 +61,12 @@ show = "voice"
 [tags.thought]
 kind = "flag"
 show = "thought"
+
+# A line's voice-over recording: played in the Play panel, listed in the Voice-over tab.
+[tags.dub]
+kind = "asset"
+path = "audio/dub/{value}.*"
+show = "sound"
 
 # Conditions the views can filter on.
 [[variants]]

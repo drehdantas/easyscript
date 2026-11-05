@@ -18,6 +18,8 @@ tauri-build = { version = "2.7.3", features = [] }
 es-core.workspace = true
 es-formats.workspace = true
 es-github.workspace = true
+base64 = "0.23.1"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 keyring = "4.2.0"
 notify = "8.2.0"
 notify-debouncer-full = "0.7.0"
@@ -26,6 +28,9 @@ serde_json = "1.0.154"
 tauri = { version = "2.12.4", features = [] }
 tauri-plugin-dialog = "2.8.3"
 tauri-plugin-opener = "2.7.2"
+hound = "3"
+symphonia = { version = "0.5", default-features = false, features = ["aac", "alac", "flac", "isomp4", "mp3", "ogg", "vorbis", "wav", "pcm", "aiff", "caf", "adpcm"] }
+ureq = "3.4.2"
 
 [lints]
 workspace = true

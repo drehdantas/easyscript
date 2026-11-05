@@ -12,8 +12,8 @@ import { normalize } from "./text";
 
 export type VariantChoice = "all" | "true" | "false";
 /** What the app shows: writing a scene, the story map, the whole script to read, or (in
- *  the app) the project file. */
-export type Tab = "write" | "map" | "read" | "project";
+ *  the app) the voice-over and the project file. */
+export type Tab = "write" | "map" | "read" | "voices" | "project";
 export type Theme = "system" | "light" | "dark";
 
 const PREFS = "easyscript:reader";

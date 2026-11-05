@@ -13,6 +13,7 @@
   import { t } from "./i18n.svelte";
   import { useReader } from "./reader.svelte";
   import LineTags from "./LineTags.svelte";
+  import { player } from "./voice.svelte";
   import JumpPicker from "./write/JumpPicker.svelte";
 
   let {
@@ -56,7 +57,14 @@
   const face = $derived(specs.find((s) => s.show === "face" && s.kind === "asset"));
   const voice = $derived(specs.find((s) => s.show === "voice" && s.kind === "enum"));
   const switches = $derived(specs.filter((s) => s.kind === "flag"));
-  const shownByControls: Set<string> = $derived(new Set([face?.name, voice?.name, ...switches.map((s) => s.name)].filter((n): n is string => !!n)));
+  const sound = $derived(specs.find((s) => s.show === "sound" && s.kind === "asset"));
+  const shownByControls: Set<string> = $derived(new Set([face?.name, voice?.name, sound?.name, ...switches.map((s) => s.name)].filter((n): n is string => !!n)));
+  function setSound(value: string) {
+    if (!sound) return;
+    if (value.trim()) tags[sound.name] = value.trim();
+    else delete tags[sound.name];
+  }
+  const soundValue = $derived(sound ? (tags[sound.name] ?? null) : null);
 
   let faceValue = $state(untrack(() => (draft ? draft.face : face && face.name in before ? before[face.name] : null)));
   $effect(() => {
@@ -202,6 +210,18 @@
         {/if}
         <LineTags bind:tags shown={shownByControls} />
       </div>
+      {#if sound && !target.choice}
+        <div class="le-row le-dub">
+          <span class="k">{t("Voice-over")}</span>
+          <input type="text" value={soundValue ?? ""} oninput={(e) => setSound(e.currentTarget.value)} list="dm-dub-values" placeholder={t("no recording")} spellcheck="false" aria-label={t("Voice-over recording")} />
+          <datalist id="dm-dub-values">{#each sound.available as v (v)}<option value={v}></option>{/each}</datalist>
+          <button type="button" class="play-btn" disabled={!soundValue || !sound.available.includes(soundValue)}
+            onclick={() => (player.isPlaying(sound, soundValue) ? player.stop() : player.play(sound, soundValue))}
+            aria-label={t("Play the recording")} title={soundValue && !sound.available.includes(soundValue) ? t("No file for {value} in {path}", { value: soundValue, path: sound.path ?? "" }) : t("Play the recording")}
+          >{player.isPlaying(sound, soundValue) ? "■" : "▶"}</button>
+          {#if soundValue}<button type="button" class="link" onclick={() => setSound("")} aria-label={t("Remove the recording")} title={t("Remove the recording")}>✕</button>{/if}
+        </div>
+      {/if}
       {#if target.choice}<ConditionInput bind:value={condition} label={t("Shown if")} />{/if}
       {#if initial.jump !== null || isNew}<JumpPicker bind:value={goTo} />{/if}
     </div>

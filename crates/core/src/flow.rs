@@ -55,21 +55,42 @@ pub fn key(file: FileId, label: &str) -> String {
 
 pub fn flow(project: &Project, script: &Script) -> Flow {
     let mut edges = Vec::new();
-    for (file_id, file) in script.files.iter().enumerate() {
-        let titles: HashSet<&str> = file
-            .sections
+    let titles_of = |file: &crate::model::ScriptFile| -> HashSet<String> {
+        file.sections
             .iter()
             .flat_map(|s| &s.labels)
-            .map(|l| l.id.as_str())
+            .map(|l| l.id.clone())
+            .collect()
+    };
+    let all_titles: Vec<HashSet<String>> = script.files.iter().map(titles_of).collect();
+    for (file_id, file) in script.files.iter().enumerate() {
+        let titles = &all_titles[file_id];
+        // `import "res://dialogue/docks.dialogue" as docks`: `=> docks/title` goes there.
+        let imported: Vec<(&str, usize)> = file
+            .imports
+            .iter()
+            .filter_map(|import| {
+                let path = import.path.trim_start_matches("res://");
+                let other = script.files.iter().position(|f| f.path == path)?;
+                Some((import.alias.as_str(), other))
+            })
             .collect();
         let labels: Vec<&Label> = file.sections.iter().flat_map(|s| &s.labels).collect();
         for (i, label) in labels.iter().enumerate() {
             let from = key(file_id, &label.id);
             let mut add = |target: &str, kind: FlowKind| {
-                if titles.contains(target) {
+                let to = match target.split_once('/') {
+                    Some((alias, title)) => imported
+                        .iter()
+                        .find(|(a, _)| *a == alias)
+                        .filter(|(_, other)| all_titles[*other].contains(title))
+                        .map(|(_, other)| key(*other, title)),
+                    None => titles.contains(target).then(|| key(file_id, target)),
+                };
+                if let Some(to) = to {
                     let edge = FlowEdge {
                         from: from.clone(),
-                        to: key(file_id, target),
+                        to,
                         kind,
                         flag: None,
                     };

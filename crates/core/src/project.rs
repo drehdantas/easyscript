@@ -126,6 +126,31 @@ impl Project {
         self.root.join(path)
     }
 
+    /// An asset's file: `path` from the project file, where a final `.*` stands for any
+    /// extension (`audio/{value}.*` finds `audio/hi.ogg` or `audio/hi.mp3`). None when there
+    /// is no such file.
+    pub fn find_asset(&self, path: &str) -> Option<PathBuf> {
+        let Some(stem) = path.strip_suffix(".*") else {
+            let full = self.resolve(path);
+            return full.is_file().then_some(full);
+        };
+        let full = self.resolve(stem);
+        let dir = full.parent()?;
+        let name = full.file_name()?.to_str()?.to_owned();
+        let mut found: Vec<PathBuf> = fs::read_dir(dir)
+            .ok()?
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .filter(|p| {
+                p.is_file()
+                    && p.file_stem().and_then(|s| s.to_str()) == Some(name.as_str())
+                    && p.extension().is_some()
+            })
+            .collect();
+        found.sort();
+        found.into_iter().next()
+    }
+
     /// A document path, relative to the project file's folder.
     pub fn resolve_document(&self, path: &str) -> PathBuf {
         match self.config_path.as_deref().and_then(Path::parent) {

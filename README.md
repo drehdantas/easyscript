@@ -9,7 +9,9 @@ The first format is Dialogue Manager 3 `.dialogue` files (Godot 4).
 ## What it does
 
 - **Write** scenes as cards, one per line: who speaks, their face and voice, and the words. Add choices, conditions, flags and jumps to other scenes without touching the syntax. Only the lines you change are written, and only when you save; comments, blank lines and indentation stay as they were.
-- **Play** the scene beside it, as the game would: lines one at a time, choices to pick, flags tracked. What only the game knows, it asks once.
+- **Play** the scene beside it, as the game would: lines one at a time, choices to pick, flags tracked, each line's voice-over recording playing as it shows. What only the game knows, it asks once.
+- **Voice-over**: bring recordings in (Ogg, MP3, WAV as they are; FLAC, M4A, AIFF, CAF converted to WAV; or from a Google Drive link), let the app match them to lines by their names, then see, add, change or remove each line's recording. A recording is a tag on the line, so the game can play it too.
+- **Story order**: the dialogue files in the order a player meets them, suggested from how the story moves, and yours to rearrange. Only the app's list follows it; the files do not change.
 - **Read** the whole script as one document, searchable and filtered by the game's modes. The **Map** shows how scenes lead to each other, who speaks where, and which flags each place sets and reads.
 - **Work with the team** through git. It shows, scene by scene, what teammates changed and are changing. It brings their changes in without losing yours, commits and sends your work, and opens the pull request.
 - **Export**:
